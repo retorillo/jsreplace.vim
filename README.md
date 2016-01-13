@@ -1,6 +1,6 @@
 # jsreplace.vim
 
-![preview](preview.jpg)
+![preview](preview.gif)
 
 Allows you to use Javascript RegExp pattern replacement
 
@@ -11,7 +11,7 @@ Allows you to use Javascript RegExp pattern replacement
 ```
 
 flags is a second argument of RegExp constructor
-Default value is "gm". See [Options](#Options)
+Default value is "gm". See [Options](#options)
 
 ## Dependencies
 

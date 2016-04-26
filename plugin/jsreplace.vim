@@ -1,72 +1,129 @@
-" jsreplace.vim
+" JsReplace.vim < https://github.com/retorillo/jsreplace.vim>
 " Distributed under the MIT license
 " Copyright (C) Retorillo
 
+let s:exec_js = expand('<sfile>:p:h').'/exec.js'
+let s:test_js = expand('<sfile>:p:h').'/test.js'
+
+" ----------------------------------------------------------------------------------------
+" Global Variables
+" ----------------------------------------------------------------------------------------
+
+function! s:let_safe(name, default)
+   if !exists(a:name)
+      exec 'let '.a:name.' = '.a:default
+   endif
+endfunction
+
+call s:let_safe('g:jsReplace#defaultFlags', '""')
+call s:let_safe('g:jsReplace#nodeCommand', '"node"')
+
+" ----------------------------------------------------------------------------------------
+" JsReplace
+" ----------------------------------------------------------------------------------------
+
 command! -nargs=+ -range JsReplace :<line1>,<line2>call JsReplace(<f-args>)
-cabbrev jsreplace <c-r>=getcmdtype() == ":" ? "JsReplace" : "jsreplace"<CR>
-
-let s:escript = expand("<sfile>:p:h")."/exec.js"
-let s:tscript = expand("<sfile>:p:h")."/test.js"
-
-if !exists("g:jsreplace_defaultflags")
-	let g:jsreplace_defaultflags = "gm"
-endif
-
-function! s:makeshell(args)
-	let l:shell = ""
-	for a in a:args
-		if l:shell != ""
-			let l:shell .= " "
-		endif
-		let l:shell .= shellescape(a)
-	endfor
-	return l:shell
-endfunction
-
-function! s:test(pattern, flags)
-	return system(s:makeshell([
-	\	"node",
-	\	s:tscript,
-	\	a:pattern,
-	\	a:flags
-	\ ]))
-endfunction
-function! s:exec(path, pattern, replace, flags)
-	let l:enc  = &encoding
-	let l:fenc = &fileencoding
-	return system(s:makeshell([
-	\	"node",
-	\	s:escript,
-	\       a:path,
-	\	l:fenc != "" ? l:fenc : l:enc,
-	\	a:pattern,
-	\	a:replace,
-	\	a:flags
-	\ ]))
-endfunction
+cabbrev jsreplace <c-r>=getcmdtype() == ':' && getcmdline()[0 : getcmdpos() - 1] =~ '^\S*$' ? 'JsReplace' : 'jsreplace'<CR>
+cabbrev jsr <c-r>=getcmdtype() == ':' && getcmdline()[0 : getcmdpos() - 1] =~ '^\S*$' ? 'JsReplace' : 'jsr'<CR>
 
 function! JsReplace(pattern, ...) range
 try
-	if a:0 > 2
-		throw "Too many arguments"
-	endif
-	let l:replace = a:0 < 1 ? "" : a:1
-	let l:flags = a:0 < 2 ? g:jsreplace_defaultflags : a:2
-	let l:test = s:test(a:pattern, l:flags)
-	if len(l:test) > 0
-		throw l:test
-	endif
-	let l:temp = tempname() 
-	for ln in range(a:firstline, a:lastline)
-		call writefile([getline(ln)], l:temp , "a")
-	endfor
-	call s:exec(l:temp, a:pattern, l:replace, l:flags)
-	exec a:firstline .",". a:lastline . "d"
-	let l:ln = a:firstline - 1
-	for l in readfile(l:temp)
-		call append(l:ln, l)
-		let l:ln += 1 
-	endfor
-	call delete(l:temp)
+   if g:jsReplace#nodeCommand == 'node' && !executable('node')
+      throw 'Command "node" is not found on your system. Install Node.js or optimally set g:jsReplace#nodeCommand.'
+   endif
+   if a:0 > 2
+      throw 'USAGE: JsReplace pattern [replacement [flags]]'
+   endif
+
+   " When using require() to parse JSON, extension must be '.json'
+   let json = tempname().'.json'
+   let opt = {
+      \ 'lines': [],
+      \ 'pattern': a:pattern,
+      \ 'replacement': (a:0 < 1 ? '' : a:1),
+      \ 'flags': (a:0 < 2 ? g:jsReplace#defaultFlags : a:2),
+      \ 'fileformat': &fileformat,
+   \ }
+
+   for ln in range(a:firstline, a:lastline)
+      call add(opt.lines, getline(ln))
+   endfor
+   call writefile([s:to_json(opt)], json)
+
+   let test = s:system_safe(g:jsReplace#nodeCommand, s:test_js, json)
+   if strlen(test) > 0
+      throw test
+   endif
+
+   let ln = a:firstline
+   let exec = s:system_safe(g:jsReplace#nodeCommand, s:exec_js, json)
+   for line in split(substitute(exec, '\r\n', '\n', 'g'), '\n')
+      call setline(ln, line)
+      let ln += 1
+   endfor
+   call delete(json)
+catch
+   echohl Error
+   for line in split(v:exception, '\n')
+      echo line
+   endfor
+   echohl None
 endtry
+endfunction
+
+" ----------------------------------------------------------------------------------------
+" Internal utitilies
+" ----------------------------------------------------------------------------------------
+
+function! s:system_safe(...)
+   let buf = []
+   for a in a:000
+      call add(buf, shellescape(a))
+   endfor
+   return system(join(buf, ' '))
+endfunction
+
+function! s:json_quote(str)
+   let str = a:str
+   let str = substitute(str, '\\', '\\\\', 'g')
+   let str = substitute(str, '\t', '\\t', 'g')
+   return '"'.substitute(str, '"', '\\"', 'g').'"'
+endfunction
+
+function! s:to_json(obj)
+   let buf = []
+   call s:to_json_internal(buf, a:obj)
+   return join(buf, '')
+endfunction
+
+function! s:to_json_internal(buf, obj)
+   if type(a:obj) == 3 " Array
+      let c = 0
+      call add(a:buf, '[')
+      for item in a:obj
+         if c > 0
+            call add(a:buf, ', ')
+         endif
+         call s:to_json_internal(a:buf, item)
+         let c += 1
+      endfor
+      call add(a:buf, ']')
+   elseif type(a:obj) == 4 " Dictionary
+      call add(a:buf, '{')
+      let c = 0
+      for key in keys(a:obj)
+         if c > 0
+            call add(a:buf, ', ')
+         endif
+         call add(a:buf, s:json_quote(key))
+         call add(a:buf, ': ')
+         call s:to_json_internal(a:buf, a:obj[key])
+         let c += 1
+      endfor
+      call add(a:buf, '}')
+   elseif type(a:obj) == 1 " String
+      call add(a:buf, s:json_quote(a:obj))
+   else
+      call add(a:buf, a:obj) " Does not json_quote
+   endif
 endfunction

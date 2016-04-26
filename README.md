@@ -1,46 +1,40 @@
-# jsreplace.vim
+# JsReplace.vim
 
 ![preview](preview.gif)
 
-Allows you to use Javascript RegExp pattern replacement
+Vim plugin that allows you to use Javascript RegExp pattern replacement.
 
 ## Usage
 
 ```vimL
-:%JsReplace pattern [replacement] [flags]
+:%JsReplace pattern [replacement [flags]]
 ```
 
-flags is a second argument of RegExp constructor
-Default value is "gm". See [Options](#options)
+`flags` is used as a second argument of [RegExp constructor](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp).
+See [Options](#options)
 
 ## Dependencies
 
 - [Node.js](https://nodejs.org/)
 
-## Install
-
-### Pathogen (Linux)
+## Install(Pathogen)
 
 ```vimL
 git clone https://github.com/retorillo/jsreplace.vim.git ~/.vim/bundle/jsreplace.vim
 ```
 
-### Pathogen (Windows/PowerShell)
-
-```vimL
-git clone https://github.com/retorillo/jsreplace.vim.git $home/vimfiles/bundle/jsreplace.vim
-```
-
 ## Options
 
-When `flags` is not specified, `g:jsreplace_defaultflags` is used for RegExp constructor. 
+When `flags` is not specified, `g:jsRreplace#defaultflags` is used for RegExp
+constructor. When Node.js command name is not 'node' on your system, set
+`g:jsReplace#nodeCommand`.
 
 ```vimL
-let g:jsreplace_defaultflags = "gm"
+let g:jsReplace#defaultflags = "g"
+let g:jsReplace#nodeCommand = "nodejs"
 ```
 
 ## License
 
-Copyright (C) Retorillo
-
 Distributed under the the MIT license
+Copyright (C) 2016 Retorillo

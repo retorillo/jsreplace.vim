@@ -48,16 +48,15 @@ try
    for ln in range(a:firstline, a:lastline)
       call add(opt.lines, getline(ln))
    endfor
-   call writefile([s:to_json(opt)], json)
+   call writefile([json_encode(opt)], json)
 
-   let test = s:system_safe(g:jsReplace#nodeCommand, s:test_js, json)
+   let test = system(s:mkshell(g:jsReplace#nodeCommand, s:test_js, json))
    if strlen(test) > 0
       throw test
    endif
 
    let ln = a:firstline
-   let exec = s:system_safe(g:jsReplace#nodeCommand, s:exec_js, json)
-   for line in split(substitute(exec, '\r\n', '\n', 'g'), '\n')
+   for line in systemlist(s:mkshell(g:jsReplace#nodeCommand, s:exec_js, json))
       call setline(ln, line)
       let ln += 1
    endfor
@@ -71,59 +70,10 @@ catch
 endtry
 endfunction
 
-" ----------------------------------------------------------------------------------------
-" Internal utitilies
-" ----------------------------------------------------------------------------------------
-
-function! s:system_safe(...)
+function! s:mkshell(...)
    let buf = []
    for a in a:000
       call add(buf, shellescape(a))
    endfor
-   return system(join(buf, ' '))
-endfunction
-
-function! s:json_quote(str)
-   let str = a:str
-   let str = substitute(str, '\\', '\\\\', 'g')
-   let str = substitute(str, '\t', '\\t', 'g')
-   return '"'.substitute(str, '"', '\\"', 'g').'"'
-endfunction
-
-function! s:to_json(obj)
-   let buf = []
-   call s:to_json_internal(buf, a:obj)
-   return join(buf, '')
-endfunction
-
-function! s:to_json_internal(buf, obj)
-   if type(a:obj) == 3 " Array
-      let c = 0
-      call add(a:buf, '[')
-      for item in a:obj
-         if c > 0
-            call add(a:buf, ', ')
-         endif
-         call s:to_json_internal(a:buf, item)
-         let c += 1
-      endfor
-      call add(a:buf, ']')
-   elseif type(a:obj) == 4 " Dictionary
-      call add(a:buf, '{')
-      let c = 0
-      for key in keys(a:obj)
-         if c > 0
-            call add(a:buf, ', ')
-         endif
-         call add(a:buf, s:json_quote(key))
-         call add(a:buf, ': ')
-         call s:to_json_internal(a:buf, a:obj[key])
-         let c += 1
-      endfor
-      call add(a:buf, '}')
-   elseif type(a:obj) == 1 " String
-      call add(a:buf, s:json_quote(a:obj))
-   else
-      call add(a:buf, a:obj) " Does not json_quote
-   endif
+   return join(buf, ' ')
 endfunction
